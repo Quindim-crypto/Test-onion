@@ -5,3 +5,12 @@ local Tab = Window:MakeTab({
 	Icon = "rbxassetid://4483345998",
 	PremiumOnly = false
 })
+local Section = Tab:AddSection({
+	Name = "Universais"
+})
+Tab:AddButton({
+	Name = "Inf yield",
+	Callback = function()
+      		print("button pressed")
+  	end    
+})
