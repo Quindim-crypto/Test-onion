@@ -1,0 +1,229 @@
+-- ESP Script com Radar Colorido por Times e Keybind G para Ativar/Desativar
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+-- Configurações
+local ESPConfig = {
+    UpdateRate = 0.1,
+    Enabled = true, -- ESP começa ativado
+    TeamColors = {
+        [1] = Color3.fromRGB(255, 0, 0),     -- Time 1: Vermelho
+        [2] = Color3.fromRGB(0, 0, 255),     -- Time 2: Azul
+        [3] = Color3.fromRGB(0, 255, 0),     -- Time 3: Verde
+    },
+    DefaultColor = Color3.fromRGB(255, 255, 255),
+    MaxDistance = 1000,
+    BoxSize = Vector2.new(2000, 2000)
+}
+
+-- Storage para objetos visuais
+local ESPObjects = {}
+
+-- Notificação
+local function showNotification(text)
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "ESP Script",
+        Text = text,
+        Duration = 1.5,
+    })
+end
+
+-- Função para criar elementos visuais
+local function createESP(player)
+    local folder = Instance.new("Folder")
+    folder.Name = player.Name
+    folder.Parent = game.CoreGui
+
+    -- Box
+    local box = Drawing.new("Square")
+    box.Visible = false
+    box.Thickness = 2
+    box.Filled = false
+    box.Transparency = 1
+    
+    -- Nome
+    local nameTag = Drawing.new("Text")
+    nameTag.Visible = false
+    nameTag.Size = 15
+    nameTag.Center = true
+    nameTag.Outline = true
+    nameTag.OutlineColor = Color3.fromRGB(0, 0, 0)
+
+    -- Linha para o radar
+    local radarLine = Drawing.new("Line")
+    radarLine.Visible = false
+    radarLine.Thickness = 1
+    radarLine.Transparency = 0.5
+
+    -- Ponto no radar
+    local radarDot = Drawing.new("Circle")
+    radarDot.Visible = false
+    radarDot.Radius = 5
+    radarDot.Filled = true
+    radarDot.Transparency = 1
+
+    ESPObjects[player] = {
+        Box = box,
+        NameTag = nameTag,
+        RadarLine = radarLine,
+        RadarDot = radarDot,
+        Folder = folder
+    }
+end
+
+-- Função para remover ESP
+local function removeESP(player)
+    if ESPObjects[player] then
+        local objects = ESPObjects[player]
+        objects.Box:Remove()
+        objects.NameTag:Remove()
+        objects.RadarLine:Remove()
+        objects.RadarDot:Remove()
+        objects.Folder:Destroy()
+        ESPObjects[player] = nil
+    end
+end
+
+-- Função para esconder/mostrar todos os ESPs
+local function toggleAllESP(state)
+    for player, objects in pairs(ESPObjects) do
+        objects.Box.Visible = state
+        objects.NameTag.Visible = state
+        objects.RadarLine.Visible = state
+        objects.RadarDot.Visible = state
+    end
+end
+
+-- Função principal de atualização do ESP
+local function updateESP()
+    if not ESPConfig.Enabled then return end
+    
+    local cameraPos = Camera.CFrame.Position
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local character = player.Character
+            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+            local head = character:FindFirstChild("Head")
+            
+            if humanoidRootPart and head then
+                local position = humanoidRootPart.Position
+                local distance = (cameraPos - position).Magnitude
+                
+                if distance < ESPConfig.MaxDistance then
+                    -- Criar ESP se não existir
+                    if not ESPObjects[player] then
+                        createESP(player)
+                    end
+                    
+                    local objects = ESPObjects[player]
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(position)
+                    
+                    -- Definir cor do time
+                    local teamColor = ESPConfig.TeamColors[player.Team.TeamNumber] or ESPConfig.DefaultColor
+                    
+                    if onScreen then
+                        -- Posição na tela
+                        local headPos = Camera:WorldToViewportPoint(head.Position)
+                        local scaleFactor = 1000 / (distance + 200)
+                        
+                        -- Atualizar Box
+                        objects.Box.Visible = true
+                        objects.Box.Size = Vector2.new(scaleFactor * 3, scaleFactor * 5)
+                        objects.Box.Position = Vector2.new(screenPos.X - (scaleFactor * 1.5), screenPos.Y - (scaleFactor * 5))
+                        objects.Box.Color = teamColor
+                        
+                        -- Atualizar Nome
+                        objects.NameTag.Visible = true
+                        objects.NameTag.Text = string.format("%s [%.0fm]", player.Name, distance)
+                        objects.NameTag.Position = Vector2.new(screenPos.X, headPos.Y + 20)
+                        objects.NameTag.Color = teamColor
+                    else
+                        objects.Box.Visible = false
+                        objects.NameTag.Visible = false
+                    end
+                    
+                    -- Radar (sempre visível)
+                    local radarCenter = Vector2.new(Camera.ViewportSize.X - 150, 150)
+                    local radarRadius = 100
+                    
+                    local relativePos = position - cameraPos
+                    relativePos = relativePos * (radarRadius / ESPConfig.MaxDistance)
+                    
+                    -- Limitar ao círculo do radar
+                    if relativePos.Magnitude > radarRadius then
+                        relativePos = relativePos.Unit * radarRadius
+                    end
+                    
+                    local radarPoint = radarCenter + Vector2.new(relativePos.X, -relativePos.Z)
+                    
+                    -- Linha do radar
+                    objects.RadarLine.From = radarCenter
+                    objects.RadarLine.To = radarPoint
+                    objects.RadarLine.Color = teamColor
+                    objects.RadarLine.Visible = true
+                    
+                    -- Ponto do radar
+                    objects.RadarDot.Position = radarPoint
+                    objects.RadarDot.Color = teamColor
+                    objects.RadarDot.Visible = true
+                else
+                    if ESPObjects[player] then
+                        removeESP(player)
+                    end
+                end
+            end
+        end
+    end
+
+    -- Remover ESP de jogadores que saíram
+    for player, _ in pairs(ESPObjects) do
+        if not player.Parent then
+            removeESP(player)
+        end
+    end
+end
+
+-- Keybind G para ativar/desativar
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.G then
+        ESPConfig.Enabled = not ESPConfig.Enabled
+        
+        if ESPConfig.Enabled then
+            showNotification("ESP Ativado ✓")
+            toggleAllESP(true)
+        else
+            showNotification("ESP Desativado ✗")
+            toggleAllESP(false)
+        end
+    end
+end)
+
+-- Eventos de entrada/saída de jogadores
+Players.PlayerAdded:Connect(function(player)
+    createESP(player)
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    removeESP(player)
+end)
+
+-- Loop de atualização
+RunService.RenderStepped:Connect(function()
+    updateESP()
+end)
+
+-- Limpeza
+LocalPlayer.CharacterAdded:Connect(function()
+    for player, _ in pairs(ESPObjects) do
+        removeESP(player)
+    end
+end)
+
+-- Notificação inicial
+showNotification("Pressione 'G' para ativar/desativar ESP")
