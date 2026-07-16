@@ -26,3 +26,9 @@ Tab:AddButton({
       		loadstring(game:HttpGet("https://raw.githubusercontent.com/dertonware/scriptasda/refs/heads/main/scriptlua", true))()
   	end    
 })
+Tab:AddButton({
+	Name = "Esp",
+	Callback = function()
+      		loadstring(game:HttpGet("https://raw.githubusercontent.com/Quindim-crypto/Test-onion/refs/heads/main/Esp"))()
+  	end    
+})
