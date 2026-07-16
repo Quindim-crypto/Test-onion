@@ -1,339 +1,76 @@
--- ESP Script com Skeleton, Tracers e Keybind G
+-- ESP (debug) com Highlight + keybind G (legítimo, sem Drawing)
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local Camera = workspace.CurrentCamera
+
 local LocalPlayer = Players.LocalPlayer
 
--- Configurações
-local ESPConfig = {
-    Enabled = true,
-    TeamColors = {
-        [1] = Color3.fromRGB(255, 0, 0),     -- Time 1: Vermelho
-        [2] = Color3.fromRGB(0, 0, 255),     -- Time 2: Azul
-        [3] = Color3.fromRGB(0, 255, 0),     -- Time 3: Verde
-    },
-    DefaultColor = Color3.fromRGB(255, 0, 0), -- Vermelho para times não configurados
-    MaxDistance = 1000,
+local Enabled = true
+local Highlights = {} -- [Player] = Highlight
+
+local TEAM_COLORS = {
+	-- usa TeamColor.Name como chave (ex.: "Bright red"), ou ajusta como quiseres
+	["Bright red"] = Color3.fromRGB(255, 0, 0),
+	["Bright blue"] = Color3.fromRGB(0, 120, 255),
+	["Bright green"] = Color3.fromRGB(0, 255, 0),
 }
+local DEFAULT_COLOR = Color3.fromRGB(255, 0, 0)
 
--- Storage para objetos visuais
-local ESPObjects = {}
-
--- Notificação
-local function showNotification(text)
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "ESP Script",
-        Text = text,
-        Duration = 1.5,
-    })
+local function getPlayerColor(p)
+	local tc = p.TeamColor and p.TeamColor.Name
+	return (tc and TEAM_COLORS[tc]) or DEFAULT_COLOR
 end
 
--- Criar desenhos para um jogador
-local function createESP(player)
-    local drawings = {}
-    
-    -- Skeleton lines (conecta partes do corpo)
-    drawings.SkeletonLines = {}
-    for i = 1, 15 do
-        local line = Drawing.new("Line")
-        line.Visible = false
-        line.Thickness = 1.5
-        line.Transparency = 1
-        table.insert(drawings.SkeletonLines, line)
-    end
-    
-    -- Box 2D
-    drawings.Box = Drawing.new("Square")
-    drawings.Box.Visible = false
-    drawings.Box.Thickness = 2
-    drawings.Box.Filled = false
-    drawings.Box.Transparency = 1
-    
-    -- Health bar
-    drawings.HealthBar = Drawing.new("Line")
-    drawings.HealthBar.Visible = false
-    drawings.HealthBar.Thickness = 2
-    drawings.HealthBar.Transparency = 1
-    
-    -- Health bar background
-    drawings.HealthBarBg = Drawing.new("Line")
-    drawings.HealthBarBg.Visible = false
-    drawings.HealthBarBg.Thickness = 2
-    drawings.HealthBarBg.Color = Color3.fromRGB(0, 0, 0)
-    drawings.HealthBarBg.Transparency = 1
-    
-    -- Nome
-    drawings.NameTag = Drawing.new("Text")
-    drawings.NameTag.Visible = false
-    drawings.NameTag.Size = 14
-    drawings.NameTag.Center = true
-    drawings.NameTag.Outline = true
-    drawings.NameTag.OutlineColor = Color3.fromRGB(0, 0, 0)
-    
-    -- Distância
-    drawings.DistanceTag = Drawing.new("Text")
-    drawings.DistanceTag.Visible = false
-    drawings.DistanceTag.Size = 12
-    drawings.DistanceTag.Center = true
-    drawings.DistanceTag.Outline = true
-    drawings.DistanceTag.OutlineColor = Color3.fromRGB(0, 0, 0)
-    
-    -- Tracer
-    drawings.Tracer = Drawing.new("Line")
-    drawings.Tracer.Visible = false
-    drawings.Tracer.Thickness = 1
-    drawings.Tracer.Transparency = 0.5
+local function ensureHighlight(p)
+	if p == LocalPlayer then return end
+	if Highlights[p] and Highlights[p].Parent then return end
 
-    ESPObjects[player] = drawings
+	local h = Instance.new("Highlight")
+	h.Name = "DebugESP"
+	h.Enabled = Enabled
+	h.FillTransparency = 0.6
+	h.OutlineTransparency = 0.0
+	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- vê através de paredes (debug)
+	Highlights[p] = h
+
+	local function attach()
+		if p.Character then
+			h.Adornee = p.Character
+			h.FillColor = getPlayerColor(p)
+			h.OutlineColor = Color3.new(0,0,0)
+			h.Parent = p.Character
+		end
+	end
+
+	p.CharacterAdded:Connect(function()
+		attach()
+	end)
+
+	attach()
 end
 
--- Remover ESP
-local function removeESP(player)
-    if ESPObjects[player] then
-        local objects = ESPObjects[player]
-        
-        for _, line in ipairs(objects.SkeletonLines) do
-            line:Remove()
-        end
-        
-        objects.Box:Remove()
-        objects.HealthBar:Remove()
-        objects.HealthBarBg:Remove()
-        objects.NameTag:Remove()
-        objects.DistanceTag:Remove()
-        objects.Tracer:Remove()
-        
-        ESPObjects[player] = nil
-    end
+local function removeHighlight(p)
+	local h = Highlights[p]
+	if h then
+		h:Destroy()
+		Highlights[p] = nil
+	end
 end
 
--- Esconder/mostrar todos os ESPs
-local function toggleAllESP(state)
-    for _, objects in pairs(ESPObjects) do
-        objects.Box.Visible = state
-        objects.HealthBar.Visible = state
-        objects.HealthBarBg.Visible = state
-        objects.NameTag.Visible = state
-        objects.DistanceTag.Visible = state
-        objects.Tracer.Visible = state
-        
-        for _, line in ipairs(objects.SkeletonLines) do
-            line.Visible = state
-        end
-    end
+-- Inicializar
+for _, p in ipairs(Players:GetPlayers()) do
+	ensureHighlight(p)
 end
 
--- Obter posição na tela
-local function worldToScreen(position)
-    local screenPos, onScreen = Camera:WorldToViewportPoint(position)
-    return Vector2.new(screenPos.X, screenPos.Y), onScreen
-end
+Players.PlayerAdded:Connect(ensureHighlight)
+Players.PlayerRemoving:Connect(removeHighlight)
 
--- Atualizar ESP
-local function updateESP()
-    if not ESPConfig.Enabled then return end
-    
-    local cameraPos = Camera.CFrame.Position
-    
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local character = player.Character
-            local humanoid = character:FindFirstChild("Humanoid")
-            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-            local head = character:FindFirstChild("Head")
-            
-            if humanoidRootPart and head and humanoid then
-                local rootPos = humanoidRootPart.Position
-                local distance = (cameraPos - rootPos).Magnitude
-                
-                if distance < ESPConfig.MaxDistance then
-                    -- Criar ESP se não existir
-                    if not ESPObjects[player] then
-                        createESP(player)
-                    end
-                    
-                    local objects = ESPObjects[player]
-                    local teamColor = ESPConfig.TeamColors[player.Team.TeamNumber] or ESPConfig.DefaultColor
-                    
-                    -- Cores baseadas na vida
-                    local health = humanoid.Health
-                    local maxHealth = humanoid.MaxHealth
-                    local healthPercent = health / maxHealth
-                    local healthColor = Color3.fromRGB(
-                        255 - (healthPercent * 255),
-                        healthPercent * 255,
-                        0
-                    )
-                    
-                    -- Skeletons
-                    local bodyParts = {
-                        head = character:FindFirstChild("Head"),
-                        torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"),
-                        leftArm = character:FindFirstChild("LeftUpperArm") or character:FindFirstChild("Left Arm"),
-                        rightArm = character:FindFirstChild("RightUpperArm") or character:FindFirstChild("Right Arm"),
-                        leftLeg = character:FindFirstChild("LeftUpperLeg") or character:FindFirstChild("Left Leg"),
-                        rightLeg = character:FindFirstChild("RightUpperLeg") or character:FindFirstChild("Right Leg"),
-                        leftLowerArm = character:FindFirstChild("LeftLowerArm"),
-                        rightLowerArm = character:FindFirstChild("RightLowerArm"),
-                        leftLowerLeg = character:FindFirstChild("LeftLowerLeg"),
-                        rightLowerLeg = character:FindFirstChild("RightLowerLeg"),
-                    }
-                    
-                    local connections = {
-                        {bodyParts.head, bodyParts.torso},
-                        {bodyParts.torso, bodyParts.leftArm},
-                        {bodyParts.torso, bodyParts.rightArm},
-                        {bodyParts.torso, bodyParts.leftLeg},
-                        {bodyParts.torso, bodyParts.rightLeg},
-                        {bodyParts.leftArm, bodyParts.leftLowerArm},
-                        {bodyParts.rightArm, bodyParts.rightLowerArm},
-                        {bodyParts.leftLeg, bodyParts.leftLowerLeg},
-                        {bodyParts.rightLeg, bodyParts.rightLowerLeg},
-                    }
-                    
-                    -- Desenhar skeleton
-                    for i, connection in ipairs(connections) do
-                        local part1, part2 = connection[1], connection[2]
-                        if part1 and part2 and objects.SkeletonLines[i] then
-                            local pos1, onScreen1 = worldToScreen(part1.Position)
-                            local pos2, onScreen2 = worldToScreen(part2.Position)
-                            
-                            if onScreen1 and onScreen2 then
-                                objects.SkeletonLines[i].From = pos1
-                                objects.SkeletonLines[i].To = pos2
-                                objects.SkeletonLines[i].Color = teamColor
-                                objects.SkeletonLines[i].Visible = true
-                            else
-                                objects.SkeletonLines[i].Visible = false
-                            end
-                        end
-                    end
-                    
-                    -- Box 2D
-                    local headPos, headOnScreen = worldToScreen(head.Position + Vector3.new(0, 0.5, 0))
-                    local rootScreenPos, rootOnScreen = worldToScreen(rootPos - Vector3.new(0, 3, 0))
-                    
-                    if headOnScreen and rootOnScreen then
-                        local boxHeight = math.abs(headPos.Y - rootScreenPos.Y)
-                        local boxWidth = boxHeight * 0.65
-                        
-                        objects.Box.Visible = true
-                        objects.Box.Size = Vector2.new(boxWidth, boxHeight)
-                        objects.Box.Position = Vector2.new(rootScreenPos.X - boxWidth/2, rootScreenPos.Y)
-                        objects.Box.Color = teamColor
-                        
-                        -- Health Bar
-                        local healthBarX = rootScreenPos.X - boxWidth/2 - 6
-                        local healthBarHeight = boxHeight * healthPercent
-                        
-                        objects.HealthBarBg.From = Vector2.new(healthBarX, rootScreenPos.Y)
-                        objects.HealthBarBg.To = Vector2.new(healthBarX, headPos.Y)
-                        objects.HealthBarBg.Visible = true
-                        
-                        objects.HealthBar.From = Vector2.new(healthBarX, headPos.Y)
-                        objects.HealthBar.To = Vector2.new(healthBarX, headPos.Y - healthBarHeight)
-                        objects.HealthBar.Color = healthColor
-                        objects.HealthBar.Visible = true
-                        
-                        -- Tags
-                        objects.NameTag.Text = player.Name
-                        objects.NameTag.Position = Vector2.new(rootScreenPos.X, rootScreenPos.Y - 18)
-                        objects.NameTag.Color = teamColor
-                        objects.NameTag.Visible = true
-                        
-                        objects.DistanceTag.Text = string.format("[%.0fm] %dHP", distance, health)
-                        objects.DistanceTag.Position = Vector2.new(rootScreenPos.X, headPos.Y + 4)
-                        objects.DistanceTag.Color = healthColor
-                        objects.DistanceTag.Visible = true
-                        
-                        -- Tracer
-                        local tracerEndX
-                        if rootScreenPos.X < Camera.ViewportSize.X/2 then
-                            tracerEndX = 10
-                        else
-                            tracerEndX = Camera.ViewportSize.X - 10
-                        end
-                        
-                        objects.Tracer.From = Vector2.new(tracerEndX, 0)
-                        objects.Tracer.To = rootScreenPos
-                        objects.Tracer.Color = teamColor
-                        objects.Tracer.Visible = true
-                    else
-                        objects.Box.Visible = false
-                        objects.HealthBar.Visible = false
-                        objects.HealthBarBg.Visible = false
-                        objects.NameTag.Visible = false
-                        objects.DistanceTag.Visible = false
-                    end
-                    
-                    -- Tracer sempre visível enquanto o jogador estiver no jogo
-                    if not headOnScreen then
-                        local tracerEndX
-                        if rootScreenPos.X < Camera.ViewportSize.X/2 then
-                            tracerEndX = 10
-                        else
-                            tracerEndX = Camera.ViewportSize.X - 10
-                        end
-                        
-                        objects.Tracer.From = Vector2.new(tracerEndX, 0)
-                        objects.Tracer.To = rootScreenPos
-                        objects.Tracer.Color = teamColor
-                        objects.Tracer.Visible = true
-                    end
-                else
-                    if ESPObjects[player] then
-                        removeESP(player)
-                    end
-                end
-            end
-        end
-    end
-
-    -- Remover ESP de jogadores que saíram
-    for player, _ in pairs(ESPObjects) do
-        if not player.Parent then
-            removeESP(player)
-        end
-    end
-end
-
--- Keybind G
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    if input.KeyCode == Enum.KeyCode.G then
-        ESPConfig.Enabled = not ESPConfig.Enabled
-        
-        if ESPConfig.Enabled then
-            showNotification("ESP Ativado ✓")
-            toggleAllESP(true)
-        else
-            showNotification("ESP Desativado ✗")
-            toggleAllESP(false)
-        end
-    end
+-- Toggle com G
+UserInputService.InputBegan:Connect(function(input, gp)
+	if gp then return end
+	if input.KeyCode == Enum.KeyCode.G then
+		Enabled = not Enabled
+		for _, h in pairs(Highlights) do
+			if h then h.Enabled = Enabled end
+		end
+	end
 end)
-
--- Eventos
-Players.PlayerAdded:Connect(function(player)
-    createESP(player)
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-    removeESP(player)
-end)
-
--- Loop
-RunService.RenderStepped:Connect(function()
-    updateESP()
-end)
-
--- Limpeza
-LocalPlayer.CharacterAdded:Connect(function()
-    for player, _ in pairs(ESPObjects) do
-        removeESP(player)
-    end
-end)
-
-showNotification("Pressione 'G' para ativar/desativar ESP")
