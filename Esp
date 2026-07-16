@@ -8,19 +8,23 @@ local LocalPlayer = Players.LocalPlayer
 -- Configurações
 local ESPConfig = {
     UpdateRate = 0.1,
-    Enabled = true, -- ESP começa ativado
+    Enabled = true,
     TeamColors = {
         [1] = Color3.fromRGB(255, 0, 0),     -- Time 1: Vermelho
         [2] = Color3.fromRGB(0, 0, 255),     -- Time 2: Azul
         [3] = Color3.fromRGB(0, 255, 0),     -- Time 3: Verde
     },
-    DefaultColor = Color3.fromRGB(255, 255, 255),
+    DefaultColor = Color3.fromRGB(255, 255, 255),  -- Branco para times indefinidos
+    SameTeamColor = Color3.fromRGB(255, 255, 0),   -- Amarelo para aliados
+    EnemyColor = Color3.fromRGB(255, 0, 0),        -- Vermelho para inimigos (todos vs todos)
+    
     MaxDistance = 1000,
     BoxSize = Vector2.new(2000, 2000)
 }
 
 -- Storage para objetos visuais
 local ESPObjects = {}
+local localPlayerTeam = nil
 
 -- Notificação
 local function showNotification(text)
@@ -29,6 +33,43 @@ local function showNotification(text)
         Text = text,
         Duration = 1.5,
     })
+end
+
+-- Função para verificar se há times diferentes no jogo
+local function hasMultipleTeams()
+    local teams = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Team then
+            teams[player.Team] = true
+        end
+    end
+    
+    local teamCount = 0
+    for _ in pairs(teams) do
+        teamCount = teamCount + 1
+    end
+    
+    return teamCount > 1
+end
+
+-- Função para determinar a cor baseada no time
+local function getTeamColor(player)
+    if not hasMultipleTeams() then
+        -- Se todos estão no mesmo time ou não há times
+        if player == LocalPlayer then
+            return ESPConfig.DefaultColor
+        else
+            return ESPConfig.EnemyColor
+        end
+    end
+    
+    -- Se há times diferentes
+    if player.Team == LocalPlayer.Team then
+        return ESPConfig.SameTeamColor  -- Aliado
+    else
+        local teamColor = ESPConfig.TeamColors[player.Team.TeamNumber]
+        return teamColor or ESPConfig.DefaultColor  -- Time específico ou cor padrão
+    end
 end
 
 -- Função para criar elementos visuais
@@ -51,6 +92,14 @@ local function createESP(player)
     nameTag.Center = true
     nameTag.Outline = true
     nameTag.OutlineColor = Color3.fromRGB(0, 0, 0)
+    
+    -- Tag de Aliado/Inimigo
+    local relationTag = Drawing.new("Text")
+    relationTag.Visible = false
+    relationTag.Size = 12
+    relationTag.Center = true
+    relationTag.Outline = true
+    relationTag.OutlineColor = Color3.fromRGB(0, 0, 0)
 
     -- Linha para o radar
     local radarLine = Drawing.new("Line")
@@ -68,6 +117,7 @@ local function createESP(player)
     ESPObjects[player] = {
         Box = box,
         NameTag = nameTag,
+        RelationTag = relationTag,
         RadarLine = radarLine,
         RadarDot = radarDot,
         Folder = folder
@@ -80,6 +130,7 @@ local function removeESP(player)
         local objects = ESPObjects[player]
         objects.Box:Remove()
         objects.NameTag:Remove()
+        objects.RelationTag:Remove()
         objects.RadarLine:Remove()
         objects.RadarDot:Remove()
         objects.Folder:Destroy()
@@ -92,6 +143,7 @@ local function toggleAllESP(state)
     for player, objects in pairs(ESPObjects) do
         objects.Box.Visible = state
         objects.NameTag.Visible = state
+        objects.RelationTag.Visible = state
         objects.RadarLine.Visible = state
         objects.RadarDot.Visible = state
     end
@@ -102,6 +154,9 @@ local function updateESP()
     if not ESPConfig.Enabled then return end
     
     local cameraPos = Camera.CFrame.Position
+    
+    -- Verificar times no início
+    local multipleTeams = hasMultipleTeams()
     
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
@@ -122,8 +177,13 @@ local function updateESP()
                     local objects = ESPObjects[player]
                     local screenPos, onScreen = Camera:WorldToViewportPoint(position)
                     
-                    -- Definir cor do time
-                    local teamColor = ESPConfig.TeamColors[player.Team.TeamNumber] or ESPConfig.DefaultColor
+                    -- Determinar cor e relação
+                    local teamColor = getTeamColor(player)
+                    local isEnemy = true
+                    
+                    if multipleTeams then
+                        isEnemy = (player.Team ~= LocalPlayer.Team)
+                    end
                     
                     if onScreen then
                         -- Posição na tela
@@ -141,9 +201,20 @@ local function updateESP()
                         objects.NameTag.Text = string.format("%s [%.0fm]", player.Name, distance)
                         objects.NameTag.Position = Vector2.new(screenPos.X, headPos.Y + 20)
                         objects.NameTag.Color = teamColor
+                        
+                        -- Atualizar Tag de Relação
+                        if multipleTeams then
+                            objects.RelationTag.Visible = true
+                            objects.RelationTag.Text = isEnemy and "INIMIGO" or "ALIADO"
+                            objects.RelationTag.Position = Vector2.new(screenPos.X, headPos.Y + 35)
+                            objects.RelationTag.Color = isEnemy and ESPConfig.SameTeamColor or ESPConfig.DefaultColor
+                        else
+                            objects.RelationTag.Visible = false
+                        end
                     else
                         objects.Box.Visible = false
                         objects.NameTag.Visible = false
+                        objects.RelationTag.Visible = false
                     end
                     
                     -- Radar (sempre visível)
