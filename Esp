@@ -1,4 +1,4 @@
--- ESP Script com Radar Colorido por Times e Keybind G para Ativar/Desativar
+-- ESP Script com Skeleton, Tracers e Keybind G
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -7,24 +7,18 @@ local LocalPlayer = Players.LocalPlayer
 
 -- Configurações
 local ESPConfig = {
-    UpdateRate = 0.1,
     Enabled = true,
     TeamColors = {
         [1] = Color3.fromRGB(255, 0, 0),     -- Time 1: Vermelho
         [2] = Color3.fromRGB(0, 0, 255),     -- Time 2: Azul
         [3] = Color3.fromRGB(0, 255, 0),     -- Time 3: Verde
     },
-    DefaultColor = Color3.fromRGB(255, 255, 255),  -- Branco para times indefinidos
-    SameTeamColor = Color3.fromRGB(255, 255, 0),   -- Amarelo para aliados
-    EnemyColor = Color3.fromRGB(255, 0, 0),        -- Vermelho para inimigos (todos vs todos)
-    
+    DefaultColor = Color3.fromRGB(255, 0, 0), -- Vermelho para times não configurados
     MaxDistance = 1000,
-    BoxSize = Vector2.new(2000, 2000)
 }
 
 -- Storage para objetos visuais
 local ESPObjects = {}
-local localPlayerTeam = nil
 
 -- Notificação
 local function showNotification(text)
@@ -35,138 +29,123 @@ local function showNotification(text)
     })
 end
 
--- Função para verificar se há times diferentes no jogo
-local function hasMultipleTeams()
-    local teams = {}
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player.Team then
-            teams[player.Team] = true
-        end
-    end
-    
-    local teamCount = 0
-    for _ in pairs(teams) do
-        teamCount = teamCount + 1
-    end
-    
-    return teamCount > 1
-end
-
--- Função para determinar a cor baseada no time
-local function getTeamColor(player)
-    if not hasMultipleTeams() then
-        -- Se todos estão no mesmo time ou não há times
-        if player == LocalPlayer then
-            return ESPConfig.DefaultColor
-        else
-            return ESPConfig.EnemyColor
-        end
-    end
-    
-    -- Se há times diferentes
-    if player.Team == LocalPlayer.Team then
-        return ESPConfig.SameTeamColor  -- Aliado
-    else
-        local teamColor = ESPConfig.TeamColors[player.Team.TeamNumber]
-        return teamColor or ESPConfig.DefaultColor  -- Time específico ou cor padrão
-    end
-end
-
--- Função para criar elementos visuais
+-- Criar desenhos para um jogador
 local function createESP(player)
-    local folder = Instance.new("Folder")
-    folder.Name = player.Name
-    folder.Parent = game.CoreGui
-
-    -- Box
-    local box = Drawing.new("Square")
-    box.Visible = false
-    box.Thickness = 2
-    box.Filled = false
-    box.Transparency = 1
+    local drawings = {}
+    
+    -- Skeleton lines (conecta partes do corpo)
+    drawings.SkeletonLines = {}
+    for i = 1, 15 do
+        local line = Drawing.new("Line")
+        line.Visible = false
+        line.Thickness = 1.5
+        line.Transparency = 1
+        table.insert(drawings.SkeletonLines, line)
+    end
+    
+    -- Box 2D
+    drawings.Box = Drawing.new("Square")
+    drawings.Box.Visible = false
+    drawings.Box.Thickness = 2
+    drawings.Box.Filled = false
+    drawings.Box.Transparency = 1
+    
+    -- Health bar
+    drawings.HealthBar = Drawing.new("Line")
+    drawings.HealthBar.Visible = false
+    drawings.HealthBar.Thickness = 2
+    drawings.HealthBar.Transparency = 1
+    
+    -- Health bar background
+    drawings.HealthBarBg = Drawing.new("Line")
+    drawings.HealthBarBg.Visible = false
+    drawings.HealthBarBg.Thickness = 2
+    drawings.HealthBarBg.Color = Color3.fromRGB(0, 0, 0)
+    drawings.HealthBarBg.Transparency = 1
     
     -- Nome
-    local nameTag = Drawing.new("Text")
-    nameTag.Visible = false
-    nameTag.Size = 15
-    nameTag.Center = true
-    nameTag.Outline = true
-    nameTag.OutlineColor = Color3.fromRGB(0, 0, 0)
+    drawings.NameTag = Drawing.new("Text")
+    drawings.NameTag.Visible = false
+    drawings.NameTag.Size = 14
+    drawings.NameTag.Center = true
+    drawings.NameTag.Outline = true
+    drawings.NameTag.OutlineColor = Color3.fromRGB(0, 0, 0)
     
-    -- Tag de Aliado/Inimigo
-    local relationTag = Drawing.new("Text")
-    relationTag.Visible = false
-    relationTag.Size = 12
-    relationTag.Center = true
-    relationTag.Outline = true
-    relationTag.OutlineColor = Color3.fromRGB(0, 0, 0)
+    -- Distância
+    drawings.DistanceTag = Drawing.new("Text")
+    drawings.DistanceTag.Visible = false
+    drawings.DistanceTag.Size = 12
+    drawings.DistanceTag.Center = true
+    drawings.DistanceTag.Outline = true
+    drawings.DistanceTag.OutlineColor = Color3.fromRGB(0, 0, 0)
+    
+    -- Tracer
+    drawings.Tracer = Drawing.new("Line")
+    drawings.Tracer.Visible = false
+    drawings.Tracer.Thickness = 1
+    drawings.Tracer.Transparency = 0.5
 
-    -- Linha para o radar
-    local radarLine = Drawing.new("Line")
-    radarLine.Visible = false
-    radarLine.Thickness = 1
-    radarLine.Transparency = 0.5
-
-    -- Ponto no radar
-    local radarDot = Drawing.new("Circle")
-    radarDot.Visible = false
-    radarDot.Radius = 5
-    radarDot.Filled = true
-    radarDot.Transparency = 1
-
-    ESPObjects[player] = {
-        Box = box,
-        NameTag = nameTag,
-        RelationTag = relationTag,
-        RadarLine = radarLine,
-        RadarDot = radarDot,
-        Folder = folder
-    }
+    ESPObjects[player] = drawings
 end
 
--- Função para remover ESP
+-- Remover ESP
 local function removeESP(player)
     if ESPObjects[player] then
         local objects = ESPObjects[player]
+        
+        for _, line in ipairs(objects.SkeletonLines) do
+            line:Remove()
+        end
+        
         objects.Box:Remove()
+        objects.HealthBar:Remove()
+        objects.HealthBarBg:Remove()
         objects.NameTag:Remove()
-        objects.RelationTag:Remove()
-        objects.RadarLine:Remove()
-        objects.RadarDot:Remove()
-        objects.Folder:Destroy()
+        objects.DistanceTag:Remove()
+        objects.Tracer:Remove()
+        
         ESPObjects[player] = nil
     end
 end
 
--- Função para esconder/mostrar todos os ESPs
+-- Esconder/mostrar todos os ESPs
 local function toggleAllESP(state)
-    for player, objects in pairs(ESPObjects) do
+    for _, objects in pairs(ESPObjects) do
         objects.Box.Visible = state
+        objects.HealthBar.Visible = state
+        objects.HealthBarBg.Visible = state
         objects.NameTag.Visible = state
-        objects.RelationTag.Visible = state
-        objects.RadarLine.Visible = state
-        objects.RadarDot.Visible = state
+        objects.DistanceTag.Visible = state
+        objects.Tracer.Visible = state
+        
+        for _, line in ipairs(objects.SkeletonLines) do
+            line.Visible = state
+        end
     end
 end
 
--- Função principal de atualização do ESP
+-- Obter posição na tela
+local function worldToScreen(position)
+    local screenPos, onScreen = Camera:WorldToViewportPoint(position)
+    return Vector2.new(screenPos.X, screenPos.Y), onScreen
+end
+
+-- Atualizar ESP
 local function updateESP()
     if not ESPConfig.Enabled then return end
     
     local cameraPos = Camera.CFrame.Position
     
-    -- Verificar times no início
-    local multipleTeams = hasMultipleTeams()
-    
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local character = player.Character
+            local humanoid = character:FindFirstChild("Humanoid")
             local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
             local head = character:FindFirstChild("Head")
             
-            if humanoidRootPart and head then
-                local position = humanoidRootPart.Position
-                local distance = (cameraPos - position).Magnitude
+            if humanoidRootPart and head and humanoid then
+                local rootPos = humanoidRootPart.Position
+                local distance = (cameraPos - rootPos).Magnitude
                 
                 if distance < ESPConfig.MaxDistance then
                     -- Criar ESP se não existir
@@ -175,72 +154,133 @@ local function updateESP()
                     end
                     
                     local objects = ESPObjects[player]
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(position)
+                    local teamColor = ESPConfig.TeamColors[player.Team.TeamNumber] or ESPConfig.DefaultColor
                     
-                    -- Determinar cor e relação
-                    local teamColor = getTeamColor(player)
-                    local isEnemy = true
+                    -- Cores baseadas na vida
+                    local health = humanoid.Health
+                    local maxHealth = humanoid.MaxHealth
+                    local healthPercent = health / maxHealth
+                    local healthColor = Color3.fromRGB(
+                        255 - (healthPercent * 255),
+                        healthPercent * 255,
+                        0
+                    )
                     
-                    if multipleTeams then
-                        isEnemy = (player.Team ~= LocalPlayer.Team)
+                    -- Skeletons
+                    local bodyParts = {
+                        head = character:FindFirstChild("Head"),
+                        torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso"),
+                        leftArm = character:FindFirstChild("LeftUpperArm") or character:FindFirstChild("Left Arm"),
+                        rightArm = character:FindFirstChild("RightUpperArm") or character:FindFirstChild("Right Arm"),
+                        leftLeg = character:FindFirstChild("LeftUpperLeg") or character:FindFirstChild("Left Leg"),
+                        rightLeg = character:FindFirstChild("RightUpperLeg") or character:FindFirstChild("Right Leg"),
+                        leftLowerArm = character:FindFirstChild("LeftLowerArm"),
+                        rightLowerArm = character:FindFirstChild("RightLowerArm"),
+                        leftLowerLeg = character:FindFirstChild("LeftLowerLeg"),
+                        rightLowerLeg = character:FindFirstChild("RightLowerLeg"),
+                    }
+                    
+                    local connections = {
+                        {bodyParts.head, bodyParts.torso},
+                        {bodyParts.torso, bodyParts.leftArm},
+                        {bodyParts.torso, bodyParts.rightArm},
+                        {bodyParts.torso, bodyParts.leftLeg},
+                        {bodyParts.torso, bodyParts.rightLeg},
+                        {bodyParts.leftArm, bodyParts.leftLowerArm},
+                        {bodyParts.rightArm, bodyParts.rightLowerArm},
+                        {bodyParts.leftLeg, bodyParts.leftLowerLeg},
+                        {bodyParts.rightLeg, bodyParts.rightLowerLeg},
+                    }
+                    
+                    -- Desenhar skeleton
+                    for i, connection in ipairs(connections) do
+                        local part1, part2 = connection[1], connection[2]
+                        if part1 and part2 and objects.SkeletonLines[i] then
+                            local pos1, onScreen1 = worldToScreen(part1.Position)
+                            local pos2, onScreen2 = worldToScreen(part2.Position)
+                            
+                            if onScreen1 and onScreen2 then
+                                objects.SkeletonLines[i].From = pos1
+                                objects.SkeletonLines[i].To = pos2
+                                objects.SkeletonLines[i].Color = teamColor
+                                objects.SkeletonLines[i].Visible = true
+                            else
+                                objects.SkeletonLines[i].Visible = false
+                            end
+                        end
                     end
                     
-                    if onScreen then
-                        -- Posição na tela
-                        local headPos = Camera:WorldToViewportPoint(head.Position)
-                        local scaleFactor = 1000 / (distance + 200)
+                    -- Box 2D
+                    local headPos, headOnScreen = worldToScreen(head.Position + Vector3.new(0, 0.5, 0))
+                    local rootScreenPos, rootOnScreen = worldToScreen(rootPos - Vector3.new(0, 3, 0))
+                    
+                    if headOnScreen and rootOnScreen then
+                        local boxHeight = math.abs(headPos.Y - rootScreenPos.Y)
+                        local boxWidth = boxHeight * 0.65
                         
-                        -- Atualizar Box
                         objects.Box.Visible = true
-                        objects.Box.Size = Vector2.new(scaleFactor * 3, scaleFactor * 5)
-                        objects.Box.Position = Vector2.new(screenPos.X - (scaleFactor * 1.5), screenPos.Y - (scaleFactor * 5))
+                        objects.Box.Size = Vector2.new(boxWidth, boxHeight)
+                        objects.Box.Position = Vector2.new(rootScreenPos.X - boxWidth/2, rootScreenPos.Y)
                         objects.Box.Color = teamColor
                         
-                        -- Atualizar Nome
-                        objects.NameTag.Visible = true
-                        objects.NameTag.Text = string.format("%s [%.0fm]", player.Name, distance)
-                        objects.NameTag.Position = Vector2.new(screenPos.X, headPos.Y + 20)
-                        objects.NameTag.Color = teamColor
+                        -- Health Bar
+                        local healthBarX = rootScreenPos.X - boxWidth/2 - 6
+                        local healthBarHeight = boxHeight * healthPercent
                         
-                        -- Atualizar Tag de Relação
-                        if multipleTeams then
-                            objects.RelationTag.Visible = true
-                            objects.RelationTag.Text = isEnemy and "INIMIGO" or "ALIADO"
-                            objects.RelationTag.Position = Vector2.new(screenPos.X, headPos.Y + 35)
-                            objects.RelationTag.Color = isEnemy and ESPConfig.SameTeamColor or ESPConfig.DefaultColor
+                        objects.HealthBarBg.From = Vector2.new(healthBarX, rootScreenPos.Y)
+                        objects.HealthBarBg.To = Vector2.new(healthBarX, headPos.Y)
+                        objects.HealthBarBg.Visible = true
+                        
+                        objects.HealthBar.From = Vector2.new(healthBarX, headPos.Y)
+                        objects.HealthBar.To = Vector2.new(healthBarX, headPos.Y - healthBarHeight)
+                        objects.HealthBar.Color = healthColor
+                        objects.HealthBar.Visible = true
+                        
+                        -- Tags
+                        objects.NameTag.Text = player.Name
+                        objects.NameTag.Position = Vector2.new(rootScreenPos.X, rootScreenPos.Y - 18)
+                        objects.NameTag.Color = teamColor
+                        objects.NameTag.Visible = true
+                        
+                        objects.DistanceTag.Text = string.format("[%.0fm] %dHP", distance, health)
+                        objects.DistanceTag.Position = Vector2.new(rootScreenPos.X, headPos.Y + 4)
+                        objects.DistanceTag.Color = healthColor
+                        objects.DistanceTag.Visible = true
+                        
+                        -- Tracer
+                        local tracerEndX
+                        if rootScreenPos.X < Camera.ViewportSize.X/2 then
+                            tracerEndX = 10
                         else
-                            objects.RelationTag.Visible = false
+                            tracerEndX = Camera.ViewportSize.X - 10
                         end
+                        
+                        objects.Tracer.From = Vector2.new(tracerEndX, 0)
+                        objects.Tracer.To = rootScreenPos
+                        objects.Tracer.Color = teamColor
+                        objects.Tracer.Visible = true
                     else
                         objects.Box.Visible = false
+                        objects.HealthBar.Visible = false
+                        objects.HealthBarBg.Visible = false
                         objects.NameTag.Visible = false
-                        objects.RelationTag.Visible = false
+                        objects.DistanceTag.Visible = false
                     end
                     
-                    -- Radar (sempre visível)
-                    local radarCenter = Vector2.new(Camera.ViewportSize.X - 150, 150)
-                    local radarRadius = 100
-                    
-                    local relativePos = position - cameraPos
-                    relativePos = relativePos * (radarRadius / ESPConfig.MaxDistance)
-                    
-                    -- Limitar ao círculo do radar
-                    if relativePos.Magnitude > radarRadius then
-                        relativePos = relativePos.Unit * radarRadius
+                    -- Tracer sempre visível enquanto o jogador estiver no jogo
+                    if not headOnScreen then
+                        local tracerEndX
+                        if rootScreenPos.X < Camera.ViewportSize.X/2 then
+                            tracerEndX = 10
+                        else
+                            tracerEndX = Camera.ViewportSize.X - 10
+                        end
+                        
+                        objects.Tracer.From = Vector2.new(tracerEndX, 0)
+                        objects.Tracer.To = rootScreenPos
+                        objects.Tracer.Color = teamColor
+                        objects.Tracer.Visible = true
                     end
-                    
-                    local radarPoint = radarCenter + Vector2.new(relativePos.X, -relativePos.Z)
-                    
-                    -- Linha do radar
-                    objects.RadarLine.From = radarCenter
-                    objects.RadarLine.To = radarPoint
-                    objects.RadarLine.Color = teamColor
-                    objects.RadarLine.Visible = true
-                    
-                    -- Ponto do radar
-                    objects.RadarDot.Position = radarPoint
-                    objects.RadarDot.Color = teamColor
-                    objects.RadarDot.Visible = true
                 else
                     if ESPObjects[player] then
                         removeESP(player)
@@ -258,7 +298,7 @@ local function updateESP()
     end
 end
 
--- Keybind G para ativar/desativar
+-- Keybind G
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
@@ -275,7 +315,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- Eventos de entrada/saída de jogadores
+-- Eventos
 Players.PlayerAdded:Connect(function(player)
     createESP(player)
 end)
@@ -284,7 +324,7 @@ Players.PlayerRemoving:Connect(function(player)
     removeESP(player)
 end)
 
--- Loop de atualização
+-- Loop
 RunService.RenderStepped:Connect(function()
     updateESP()
 end)
@@ -296,5 +336,4 @@ LocalPlayer.CharacterAdded:Connect(function()
     end
 end)
 
--- Notificação inicial
 showNotification("Pressione 'G' para ativar/desativar ESP")
