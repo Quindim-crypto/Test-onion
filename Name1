@@ -14,3 +14,9 @@ Tab:AddButton({
       		loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
   	end    
 })
+Tab:AddButton({
+	Name = "QuirkyCMD (Somente alguns jogos)",
+	Callback = function()
+      		loadstring(game:HttpGet("https://gist.githubusercontent.com/OfficialCynatica/636bed3e9ba0088733feb986768f8015/raw"))()
+  	end    
+})
