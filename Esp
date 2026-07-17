@@ -1,4 +1,3 @@
--- ESP (debug) com Highlight + keybind G (legítimo, sem Drawing)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
