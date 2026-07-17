@@ -1,0 +1,48 @@
+local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/ionlyusegithubformcmods/1-Line-Scripts/main/Mobile%20Friendly%20Orion')))()
+
+local Window = OrionLib:MakeWindow({
+    Name = "QuindinX Hub / DripX Hub",
+    HidePremium = false, 
+    SaveConfig = true, 
+    ConfigFolder = "OrionTest"
+})
+
+local Tab = Window:MakeTab({
+    Name = "Main",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+local Section = Tab:AddSection({
+    Name = "Universais"
+})
+
+Tab:AddButton({
+    Name = "Inf yield",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+    end
+})
+
+Tab:AddButton({
+    Name = "QuirkyCMD (Somente alguns jogos)",
+    Callback = function()
+        loadstring(game:HttpGet("https://gist.githubusercontent.com/OfficialCynatica/636bed3e9ba0088733feb986768f8015/raw"))()
+    end
+})
+
+Tab:AddButton({
+    Name = "Server Utilities",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/dertonware/scriptasda/refs/heads/main/scriptlua", true))()
+    end
+})
+
+Tab:AddButton({
+    Name = "Esp",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Quindim-crypto/Test-onion/refs/heads/main/Esp"))()
+    end
+})
+
+OrionLib:Init()  -- bota isso no final sempre, porra
