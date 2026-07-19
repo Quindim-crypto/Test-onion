@@ -1,1 +1,56 @@
+local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/ionlyusegithubformcmods/1-Line-Scripts/main/Mobile%20Friendly%20Orion')))()
+local Window = OrionLib:MakeWindow({Name = "DripX Hub", HidePremium = false, SaveConfig = true, ConfigFolder = "OrionTest"})
 
+local Tab = Window:MakeTab({
+    Name = "Main",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+local Section = Tab:AddSection({
+    Name = "Universais"
+})
+
+-- NOVO BOTÃO COM CONTROLE MINIMALISTA NO CANTO SUPERIOR ESQUERDO
+Tab:AddButton({
+    Name = "🎮 Controle",
+    Icon = "rbxassetid://10322933810",  -- Icone minimalista de controle gamer
+    Callback = function()
+        print("🔥 CONTROLE ATIVADO PORRA!")
+        -- Coloca aqui o que tu quiser que esse botão faça, por enquanto só avisa
+        OrionLib:MakeNotification({
+            Name = "Controle",
+            Content = "Botão do controle ativado, caralho!",
+            Image = "rbxassetid://10322933810",
+            Time = 5
+        })
+    end
+})
+
+Tab:AddButton({
+    Name = "Inf yield",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+    end
+})
+
+Tab:AddButton({
+    Name = "QuirkyCMD (Somente alguns jogos)",
+    Callback = function()
+        loadstring(game:HttpGet("https://gist.githubusercontent.com/OfficialCynatica/636bed3e9ba0088733feb986768f8015/raw"))()
+    end
+})
+
+Tab:AddButton({
+    Name = "Server Utilities",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/dertonware/scriptasda/refs/heads/main/scriptlua", true))()
+    end
+})
+
+Tab:AddButton({
+    Name = "Esp",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Quindim-crypto/Test-onion/refs/heads/main/Esp"))()
+    end
+})
